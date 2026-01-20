@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1e293b">
+    <title>Agenda Mimi Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Libreria XLSX con supporto stili -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <style>
+        input, select, textarea { font-size: 16px !important; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .day-card { transition: all 0.2s ease-in-out; }
+        .expanded-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .expanded .expanded-content { max-height: 800px; } 
+        .expanded .chevron { transform: rotate(180deg); }
+        .mobile-input { width: 100%; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-weight: 600; color: #334155; text-align: center; }
+        .mobile-input:focus { border-color: #3b82f6; outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .input-label { font-size: 0.75rem; color: #64748b; font-weight: 700; margin-bottom: 4px; display: block; }
+        .custom-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2rem; }
+        #saveToast { transform: translateY(-150%); transition: transform 0.3s ease; }
+        #saveToast.show { transform: translateY(0); }
+        .modal-bg { background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="pb-32 bg-slate-50 text-slate-800">
+
+    <div id="saveToast" class="fixed top-0 left-0 right-0 z-[100] flex justify-center pt-safe pointer-events-none">
+        <div class="bg-emerald-500 text-white px-6 py-2 rounded-b-xl shadow-xl text-xs font-bold flex items-center gap-2"><i class="fas fa-check-circle"></i> Salvato</div>
+    </div>
+
+    <!-- HEADER -->
+    <div class="fixed top-0 left-0 right-0 bg-slate-900 text-white z-50 shadow-lg pt-safe">
+        <div class="flex justify-between items-center p-4">
+            <h1 class="text-lg font-bold tracking-tight"><i class="fas fa-calendar-alt text-blue-400 mr-2"></i>Agenda</h1>
+            <div class="flex items-center gap-3 bg-slate-800 rounded-full p-1 pl-3 pr-1 border border-slate-700">
+                <div class="text-center leading-none">
+                    <div id="monthDisplay" class="font-bold text-xs uppercase text-slate-200">GENNAIO</div>
+                    <div id="yearDisplay" class="text-[10px] text-slate-400 font-mono">2026</div>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition active:scale-95"><i class="fas fa-chevron-left text-xs"></i></button>
+                    <button onclick="changeMonth(1)" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition active:scale-95"><i class="fas fa-chevron-right text-xs"></i></button>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-3 divide-x divide-slate-800 bg-slate-950/50 p-3 text-xs border-t border-slate-800 backdrop-blur-sm">
+            <div class="text-center"><span class="block text-slate-500 mb-1 uppercase text-[10px] font-bold">Lavoro</span><span id="headerWork" class="font-bold text-blue-400 text-base font-mono"></span></div>
+            <div class="text-center"><span class="block text-slate-500 mb-1 uppercase text-[10px] font-bold">Straordinari</span><span id="headerOver" class="font-bold text-red-400 text-base font-mono"></span></div>
+            <div class="text-center"><span class="block text-slate-500 mb-1 uppercase text-[10px] font-bold">Viaggio</span><span id="headerTravel" class="font-bold text-purple-400 text-base font-mono"></span></div>
+        </div>
+    </div>
+
+    <div class="h-36"></div>
+    <div id="daysList" class="px-4 flex flex-col gap-3 max-w-md mx-auto"></div>
+    <div class="text-center py-8 pb-32"><span class="text-xs font-bold text-slate-300 uppercase tracking-widest">&copy; Mimi Studio</span></div>
+
+    <!-- FOOTER -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-2 pb-6 flex justify-around items-center z-50 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] pb-safe">
+        <button onclick="scrollToToday()" class="flex flex-col items-center gap-1 p-2 rounded-xl active:bg-slate-100 transition text-blue-600 w-16"><i class="fas fa-calendar-day text-xl"></i><span class="text-[10px] font-bold">OGGI</span></button>
+        <button onclick="downloadBackup()" class="flex flex-col items-center gap-1 p-2 rounded-xl active:bg-slate-100 transition text-slate-500 w-16"><i class="fas fa-save text-xl"></i><span class="text-[10px] font-medium">BACKUP</span></button>
+        <label class="flex flex-col items-center gap-1 p-2 rounded-xl active:bg-slate-100 transition text-slate-500 cursor-pointer w-16"><i class="fas fa-cloud-upload-alt text-xl"></i><span class="text-[10px] font-medium">CARICA</span><input type="file" class="hidden" accept=".json" onchange="importData(this)"></label>
+        <button onclick="openExportModal()" class="flex flex-col items-center gap-1 p-2 rounded-xl active:bg-slate-100 transition text-green-600 w-16"><i class="fas fa-file-excel text-xl"></i><span class="text-[10px] font-bold">EXCEL</span></button>
+    </div>
+
+    <!-- MODAL -->
+    <div id="exportModal" class="fixed inset-0 z-[100] hidden items-end sm:items-center justify-center pointer-events-none">
+        <div class="absolute inset-0 modal-bg transition-opacity opacity-0 pointer-events-auto" id="modalOverlay" onclick="closeExportModal()"></div>
+        <div class="bg-white w-full sm:w-80 sm:rounded-2xl rounded-t-2xl p-6 relative z-10 transform transition-transform translate-y-full sm:translate-y-10 opacity-0 pointer-events-auto shadow-2xl" id="modalPanel">
+            <h3 class="font-bold text-lg text-slate-800 mb-4">Gestione Excel (.xlsx)</h3>
+            <div class="space-y-3">
+                <button onclick="exportExcel('month')" class="w-full flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl active:bg-blue-50"><div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><i class="far fa-file-excel"></i></div><div class="text-left"><div class="font-bold text-sm text-slate-700">Scarica Mese</div><div class="text-[10px] text-slate-400">File modificabile</div></div></button>
+                <button onclick="exportExcel('year')" class="w-full flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl active:bg-orange-50"><div class="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><i class="fas fa-book-open"></i></div><div class="text-left"><div class="font-bold text-sm text-slate-700">Scarica Anno</div><div class="text-[10px] text-slate-400">Tutti i 12 mesi in fogli separati</div></div></button>
+                <div class="w-full border-t border-slate-100 my-2"></div>
+                <label class="w-full flex items-center gap-3 p-4 bg-slate-700 border border-slate-600 rounded-xl active:bg-slate-600 text-white cursor-pointer"><div class="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center"><i class="fas fa-file-import"></i></div><div class="text-left"><div class="font-bold text-sm">Importa da Excel</div><div class="text-[10px] text-slate-300">Carica un file con dati aggiornati</div></div><input type="file" class="hidden" accept=".xlsx, .xls" onchange="importExcel(this)"></label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDate = new Date();
+        let GLOBAL_DATA = JSON.parse(localStorage.getItem('mobileAgendaDataV3')) || {};
+        const DB_KEY = 'mobileAgendaDataV3';
+        const daysMap = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
+        const monthsMap = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+        const transportIcons = { 'Auto': 'fa-car', 'Aereo': 'fa-plane', 'Treno': 'fa-subway', 'Altro': 'fa-horse' };
+
+        function getEaster(year) { const f=Math.floor,G=year%19,C=f(year/100),H=(C-f(C/4)-f((8*C+13)/25)+19*G+15)%30,I=H-f(H/28)*(1-f(29/(H+1))*f((21-G)/11)),J=(year+f(year/4)+I+2-C+f(C/4))%7,L=I-J,m=3+f((L+40)/44),d=L+28-31*f(m/4); return {m:m-1,d:d}; }
+        function isHoliday(day, m, y) { const fixed=["1-0","6-0","25-3","1-4","2-5","15-7","1-10","8-11","25-11","26-11"]; if(fixed.includes(`${day}-${m}`)) return true; const e=getEaster(y), dE=new Date(y,e.m,e.d), dP=new Date(y,e.m,e.d+1); if(day===dE.getDate()&&m===dE.getMonth()) return true; if(day===dP.getDate()&&m===dP.getMonth()) return true; return false; }
+        function getHolidayName(day, month, year) { if(day===25 && month===11) return "Natale"; if(day===26 && month===11) return "S. Stefano"; if(day===1 && month===0) return "Capodanno"; if(day===6 && month===0) return "Epifania"; if(day===15 && month===7) return "Ferragosto"; const e=getEaster(year); if(day===e.d && month===e.m) return "Pasqua"; if(day===e.d+1 && month===e.m) return "Pasquetta"; return "Festivo"; }
+
+        function init() { updateHeader(); renderDays(); updateTotals(); setTimeout(scrollToToday, 500); }
+        function changeMonth(delta) { currentDate.setMonth(currentDate.getMonth() + delta); updateHeader(); renderDays(); updateTotals(); }
+        function updateHeader() { document.getElementById('monthDisplay').innerText = monthsMap[currentDate.getMonth()].toUpperCase(); document.getElementById('yearDisplay').innerText = currentDate.getFullYear(); }
+
+        function renderDays() {
+            const list = document.getElementById('daysList'); list.innerHTML = '';
+            const year = currentDate.getFullYear(); const month = currentDate.getMonth(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const todayDate = new Date(); const isCurrentMonth = todayDate.getMonth() === month && todayDate.getFullYear() === year;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, month, d); const dayWeek = dateObj.getDay(); const isWeekend = (dayWeek === 0 || dayWeek === 6);
+                const isToday = isCurrentMonth && todayDate.getDate() === d; const isHol = isHoliday(d, month, year);
+                const key = `${year}-${month}-${d}`; const data = GLOBAL_DATA[key] || {};
+                
+                let headerContent = "";
+                let holidayHtml = isHol ? `<div class="text-orange-500 font-bold text-xs mb-1 flex items-center"><i class="fas fa-star mr-1"></i>${getHolidayName(d, month, year)}</div>` : "";
+
+                if (data.in && data.out) {
+                    const c = calculateTime(data.in, data.out, data.break||"00:00", dayWeek);
+                    const totalMins = c.work + c.overtime;
+                    headerContent = `
+                        <div class="flex flex-col items-start justify-center">
+                            ${holidayHtml}
+                            <div class="flex items-center text-slate-600 font-bold text-sm">
+                                <i class="far fa-clock mr-1 text-slate-400"></i> ${data.in} - ${data.out}
+                            </div>
+                            <div class="text-xs text-slate-500 font-medium mt-0.5">
+                                Tot: <span class="font-bold text-slate-700">${formatDuration(totalMins)}</span>
+                            </div>
+                        </div>`;
+                } else if(isHol) {
+                    headerContent = `<div class="flex flex-col items-center justify-center h-full w-full">${holidayHtml}</div>`;
+                } else { 
+                    headerContent = `<div class="h-8"></div>`; 
+                }
+
+                const card = document.createElement('div');
+                card.className = `day-card bg-white rounded-2xl shadow-sm border ${isToday ? 'border-blue-400 ring-4 ring-blue-50/50' : 'border-slate-200'}`;
+                if(isToday) card.id = "todayCard";
+
+                let bgHeader = 'bg-white'; let dateColor = 'text-slate-700'; let dayNameColor = 'text-slate-400';
+                if (isHol) { bgHeader = 'bg-orange-50'; dateColor = 'text-orange-700'; dayNameColor = 'text-orange-400'; } 
+                else if (isWeekend) { bgHeader = 'bg-slate-100'; dateColor = 'text-slate-500'; dayNameColor = 'text-slate-500'; }
+
+                const tType = data.travelType || 'Auto'; const tIcon = transportIcons[tType] || 'fa-car';
+
+                card.innerHTML = `
+                    <div class="p-4 flex items-center justify-between cursor-pointer ${bgHeader} ${isToday ? 'rounded-t-xl' : 'rounded-xl'} transition-colors" onclick="toggleCard(this)">
+                        <div class="flex items-center gap-4 w-full">
+                            <div class="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-white border border-slate-200/60 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] flex-shrink-0">
+                                <span class="text-[9px] font-bold ${dayNameColor} uppercase tracking-wider">${daysMap[dayWeek]}</span>
+                                <span class="text-xl font-bold ${dateColor} leading-none mt-0.5">${d}</span>
+                            </div>
+                            <div class="flex-1 pl-2" id="preview-${key}">${headerContent}</div>
+                            <div class="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-100 shadow-sm flex-shrink-0"><i class="fas fa-chevron-down text-slate-300 chevron transition-transform duration-300 text-xs"></i></div>
+                        </div>
+                    </div>
+                    <div class="expanded-content bg-white ${isToday ? 'rounded-b-xl' : 'rounded-b-xl'}">
+                        <div class="p-5 grid grid-cols-2 gap-4 border-t border-slate-100/80">
+                            <div><label class="input-label">Entrata</label><div class="relative"><i class="fas fa-sign-in-alt absolute left-3 top-3.5 text-slate-300 text-xs"></i><input type="time" class="mobile-input pl-9" value="${data.in || ''}" onchange="save('${key}', 'in', this.value)"></div></div>
+                            <div><label class="input-label">Uscita</label><div class="relative"><i class="fas fa-sign-out-alt absolute left-3 top-3.5 text-slate-300 text-xs"></i><input type="time" class="mobile-input pl-9" value="${data.out || ''}" onchange="save('${key}', 'out', this.value)"></div></div>
+                            <div><label class="input-label text-orange-500">Pausa</label><input type="time" class="mobile-input text-orange-600 bg-orange-50/50 border-orange-100" value="${data.break || '00:00'}" onchange="save('${key}', 'break', this.value)"></div>
+                            <div><label class="input-label text-red-500">Straordinari</label><input type="time" class="mobile-input text-red-600 bg-red-50/50 border-red-100" value="${data.overtime || '00:00'}" onchange="save('${key}', 'overtime', this.value)"></div>
+                            <div class="col-span-2"><label class="input-label text-purple-600">Trasferta</label><div class="grid grid-cols-2 gap-3"><div class="relative"><i class="fas fa-stopwatch absolute left-3 top-3.5 text-purple-300 text-sm"></i><input type="time" class="mobile-input pl-10 text-purple-700 bg-purple-50 border-purple-100" value="${data.travel || '00:00'}" onchange="save('${key}', 'travel', this.value)"></div><div class="relative"><i class="fas ${tIcon} absolute left-3 top-3.5 text-purple-300 text-sm" id="icon-${key}"></i><select class="mobile-input custom-select pl-9 text-sm text-left text-slate-600 bg-purple-50 border-purple-100" onchange="save('${key}', 'travelType', this.value)"><option value="Auto" ${tType === 'Auto' ? 'selected' : ''}>Auto</option><option value="Aereo" ${tType === 'Aereo' ? 'selected' : ''}>Aereo</option><option value="Treno" ${tType === 'Treno' ? 'selected' : ''}>Treno</option><option value="Altro" ${tType === 'Altro' ? 'selected' : ''}>Altro</option></select></div></div></div>
+                            <div class="col-span-2"><label class="input-label">Note</label><input type="text" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-700 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition" placeholder="Descrivi attività..." value="${data.act || ''}" onchange="save('${key}', 'act', this.value)"></div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+        }
+
+        function toggleCard(header) { const card = header.parentElement; card.classList.toggle('expanded'); if(card.classList.contains('expanded')) { header.classList.remove('rounded-xl'); header.classList.add('rounded-t-xl'); } else { setTimeout(() => { header.classList.add('rounded-xl'); header.classList.remove('rounded-t-xl'); }, 300); } }
+
+        function calculateTime(inStr, outStr, breakStr, dayOfWeek) {
+            if(!inStr || !outStr) return { work: 0, overtime: 0, breakMins: 0 };
+            const start = timeToMins(inStr); const end = timeToMins(outStr);
+            let breakMins = timeToMins(breakStr); 
+            if(start <= 720 && end >= 780 && breakMins === 0) breakMins = 60; 
+            let gross = end - start; let net = gross - breakMins; if(net < 0) net = 0;
+            let stdWork = 0, overTime = 0;
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            if(isWeekend) { overTime = net; stdWork = 0; } 
+            else { if(net > 480) { stdWork = 480; overTime = net - 480; } else { stdWork = net; overTime = 0; } }
+            return { work: stdWork, overtime: overTime, breakMins: breakMins };
+        }
+
+        function save(key, field, value) {
+            if (!GLOBAL_DATA[key]) GLOBAL_DATA[key] = {};
+            GLOBAL_DATA[key][field] = value;
+            if(field === 'travel' && !GLOBAL_DATA[key].travelType) GLOBAL_DATA[key].travelType = 'Auto';
+            
+            if(['in', 'out'].includes(field)) {
+                const d = GLOBAL_DATA[key];
+                if(d.in && d.out) {
+                    const y=parseInt(key.split('-')[0]), m=parseInt(key.split('-')[1]), dNum=parseInt(key.split('-')[2]);
+                    const dow = new Date(y, m, dNum).getDay();
+                    const res = calculateTime(d.in, d.out, d.break || "00:00", dow);
+                    GLOBAL_DATA[key].break = minsToTime(res.breakMins);
+                    GLOBAL_DATA[key].overtime = minsToTime(res.overtime);
+                    const brkIn = document.querySelector(`input[onchange="save('${key}', 'break', this.value)"]`);
+                    const otIn = document.querySelector(`input[onchange="save('${key}', 'overtime', this.value)"]`);
+                    if(brkIn) brkIn.value = minsToTime(res.breakMins);
+                    if(otIn) otIn.value = minsToTime(res.overtime);
+                }
+            }
+            localStorage.setItem(DB_KEY, JSON.stringify(GLOBAL_DATA));
+            
+            if(field === 'travelType') { const iconEl = document.getElementById(`icon-${key}`); const newIcon = transportIcons[value] || 'fa-car'; if(iconEl) iconEl.className = `fas ${newIcon} absolute left-3 top-3.5 text-purple-300 text-sm`; }
+            
+            if(['in', 'out', 'break', 'overtime'].includes(field)) {
+                const data = GLOBAL_DATA[key]; const prevEl = document.getElementById(`preview-${key}`);
+                const y=parseInt(key.split('-')[0]), m=parseInt(key.split('-')[1]), dNum=parseInt(key.split('-')[2]);
+                const isHol = isHoliday(dNum, m, y);
+                if(data.in && data.out && prevEl) { 
+                    const c = calculateTime(data.in, data.out, data.break||"00:00", new Date(y, m, dNum).getDay());
+                    const totalMins = c.work + c.overtime;
+                    let holHtml = isHol ? `<div class="text-orange-500 font-bold text-xs mb-0.5 flex items-center"><i class="fas fa-star mr-1"></i>${getHolidayName(dNum, m, y)}</div>` : "";
+                    prevEl.innerHTML = `
+                        <div class="flex flex-col items-start justify-center">
+                            ${holHtml}
+                            <div class="flex items-center text-slate-700 font-bold text-sm">
+                                <i class="far fa-clock mr-1 text-slate-400"></i> ${data.in} - ${data.out}
+                            </div>
+                            <div class="text-xs text-slate-500 font-medium mt-0.5">
+                                Tot: <span class="font-bold text-slate-700">${formatDuration(totalMins)}</span>
+                            </div>
+                        </div>`; 
+                }
+            }
+            updateTotals(); const toast = document.getElementById('saveToast'); toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 1500);
+        }
+
+        function updateTotals() {
+            const year = currentDate.getFullYear(); const month = currentDate.getMonth(); let w=0, tr=0, ot=0;
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for(let d=1; d<=daysInMonth; d++) {
+                const key = `${year}-${month}-${d}`; const data = GLOBAL_DATA[key];
+                if(data && data.in && data.out) {
+                    const gross = (timeToMins(data.out) - timeToMins(data.in)) - timeToMins(data.break || '00:00');
+                    const over = timeToMins(data.overtime || '00:00');
+                    const std = gross > over ? gross - over : 0;
+                    w += std; if(data.travel) tr += timeToMins(data.travel); ot += over;
+                }
+            }
+            document.getElementById('headerWork').innerText = formatDuration(w); document.getElementById('headerTravel').innerText = formatDuration(tr); document.getElementById('headerOver').innerText = formatDuration(ot);
+        }
+
+        function scrollToToday() { const t = document.getElementById('todayCard'); if(t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); if(!t.classList.contains('expanded')) toggleCard(t.querySelector('div')); } else { currentDate = new Date(); updateHeader(); renderDays(); updateTotals(); setTimeout(() => scrollToToday(), 100); } }
+        function timeToMins(t) { if(!t) return 0; const [h,m]=t.split(':').map(Number); return (h*60)+m; }
+        function minsToTime(m) { if(m<=0) return "00:00"; const hh=Math.floor(m/60), mm=m%60; return `${hh.toString().padStart(2,'0')}:${mm.toString().padStart(2,'0')}`; }
+        function formatDuration(m) { if(m<=0) return "-"; const hh=Math.floor(m/60), mm=m%60; return `${hh}h ${mm}m`; }
+        function openExportModal() { const ov = document.getElementById('modalOverlay'); const pa = document.getElementById('modalPanel'); document.getElementById('exportModal').classList.remove('hidden'); setTimeout(() => { ov.classList.remove('opacity-0'); pa.classList.remove('opacity-0', 'translate-y-full'); pa.classList.add('translate-y-0'); }, 10); }
+        function closeExportModal() { const ov = document.getElementById('modalOverlay'); const pa = document.getElementById('modalPanel'); ov.classList.add('opacity-0'); pa.classList.add('opacity-0', 'translate-y-full'); pa.classList.remove('translate-y-0'); setTimeout(() => document.getElementById('exportModal').classList.add('hidden'), 300); }
+        function downloadBackup() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(GLOBAL_DATA)); a.download = "mimi_backup.json"; document.body.appendChild(a); a.click(); a.remove(); }
+        function importData(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = function(e) { try { GLOBAL_DATA = JSON.parse(e.target.result); localStorage.setItem(DB_KEY, JSON.stringify(GLOBAL_DATA)); renderDays(); updateTotals(); alert("Dati ripristinati!"); } catch(e){ alert("Errore file"); } }; r.readAsText(f); }
+
+        function exportExcel(mode) {
+            const year = currentDate.getFullYear();
+            const monthsToExport = mode === 'month' ? [currentDate.getMonth()] : [0,1,2,3,4,5,6,7,8,9,10,11];
+            let wb = XLSX.utils.book_new();
+
+            const t2e = (t) => {
+                if(!t) return undefined;
+                const [h, m] = t.split(':').map(Number);
+                if(isNaN(h)) return undefined;
+                return (h/24) + (m/1440);
+            };
+
+            monthsToExport.forEach(m => {
+                const monthName = monthsMap[m];
+                const daysInMonth = new Date(year, m + 1, 0).getDate();
+                const headers = ["Data", "Giorno", "Entrata", "Uscita", "Pausa", "Ore Lavoro", "Straordinari", "Ore Viaggio", "Mezzo", "Note"];
+                
+                let dataRows = [];
+                // FONT CALIBRI 11pt per tutto
+                const baseStyle = { font: { name: "Calibri", sz: 11 }, alignment: { vertical: "center", horizontal: "center" } };
+                
+                const sHead = { ...baseStyle, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E293B" } } };
+                const sDate = { ...baseStyle, numFmt: "dd/mm/yyyy", fill: { fgColor: { rgb: "E0F2F1" } } };
+                
+                // Styles with Colors
+                const sTime = { ...baseStyle, numFmt: "hh:mm", fill: { fgColor: { rgb: "E3F2FD" } } }; 
+                const sBreak = { ...baseStyle, numFmt: "[h]\"h \"m\"m\"", fill: { fgColor: { rgb: "FFFFE5" } } }; 
+                const sCalc = { ...baseStyle, numFmt: "[h]\"h \"m\"m\"", font: { name: "Calibri", sz: 11, bold: true }, fill: { fgColor: { rgb: "BBDEFB" } } }; 
+                const sOver = { ...baseStyle, numFmt: "[h]\"h \"m\"m\"", font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "B71C1C" } }, fill: { fgColor: { rgb: "FFEBEE" } } }; 
+                const sTrav = { ...baseStyle, numFmt: "[h]\"h \"m\"m\"", font: { name: "Calibri", sz: 11, bold: true }, fill: { fgColor: { rgb: "F3E5F5" } } }; 
+                const sNote = { ...baseStyle, alignment: { vertical: "center", horizontal: "left" }, fill: { fgColor: { rgb: "FFF3E0" } } }; 
+
+                // Funzione Bordi
+                const withBorder = (style, r, c, maxR, maxC) => {
+                    const s = JSON.parse(JSON.stringify(style));
+                    s.border = {
+                        top: { style: (r === 0 || r === maxR) ? "medium" : "thin", color: { rgb: (r === 0 || r === maxR) ? "000000" : "BDBDBD" } },
+                        bottom: { style: r === maxR ? "medium" : "thin", color: { rgb: r === maxR ? "000000" : "BDBDBD" } },
+                        left: { style: c === 0 ? "medium" : "thin", color: { rgb: c === 0 ? "000000" : "BDBDBD" } },
+                        right: { style: c === maxC ? "medium" : "thin", color: { rgb: c === maxC ? "000000" : "BDBDBD" } }
+                    };
+                    return s;
+                };
+
+                const totalRowsCount = daysInMonth + 1;
+                const lastColIdx = headers.length - 1;
+
+                dataRows.push(headers.map((h, c) => ({ v: h, s: withBorder(sHead, 0, c, totalRowsCount, lastColIdx) })));
+
+                for(let d=1; d<=daysInMonth; d++) {
+                    const dateObj = new Date(year, m, d);
+                    const key = `${year}-${m}-${d}`; 
+                    const data = GLOBAL_DATA[key] || {};
+                    const rIdx = d; const excelRow = d + 1;
+
+                    // Gestione Colore Festivi: Arancio Sabbia (#F4A261)
+                    const isHol = isHoliday(d, m, year);
+                    let cellStyleDate = sDate;
+                    if (isHol) {
+                        cellStyleDate = JSON.parse(JSON.stringify(sDate));
+                        cellStyleDate.font = { name: "Calibri", sz: 11, bold: true, color: { rgb: "F4A261" } }; // Pastel Orange Sand
+                    }
+
+                    const vIn = t2e(data.in);
+                    const vOut = t2e(data.out);
+                    const vTrav = t2e(data.travel);
+
+                    const fCond = `COUNT(C${excelRow},D${excelRow})=2`;
+                    const fBreak = `IF(${fCond}, IF(AND(C${excelRow}<=TIME(12,0,0), D${excelRow}>=TIME(13,0,0)), TIME(1,0,0), TIME(0,0,0)), "")`;
+                    const fNet = `MAX(0,D${excelRow}-C${excelRow}-N(E${excelRow}))`;
+                    const fWork = `IF(${fCond}, IF(WEEKDAY(A${excelRow},2)>5, 0, MIN(${fNet}, TIME(8,0,0))), "")`;
+                    const fOver = `IF(${fCond}, IF(WEEKDAY(A${excelRow},2)>5, ${fNet}, MAX(0, ${fNet}-TIME(8,0,0))), "")`;
+
+                    const mkCell = (val, type, style, colIdx, isFormula=false) => {
+                         const s = withBorder(style, rIdx, colIdx, totalRowsCount, lastColIdx);
+                         let o = { s: s };
+                         if(isFormula) { o.f = val; o.t = 'n'; }
+                         else if(val !== undefined && val !== null) { o.v = val; o.t = type; }
+                         else { o.v = ""; o.t = "s"; } 
+                         return o;
+                    };
+
+                    const row = [
+                        mkCell(dateObj, 'd', cellStyleDate, 0),
+                        mkCell(daysMap[dateObj.getDay()], 's', cellStyleDate, 1),
+                        mkCell(vIn, 'n', sTime, 2),
+                        mkCell(vOut, 'n', sTime, 3),
+                        mkCell(fBreak, 'n', sBreak, 4, true),
+                        mkCell(fWork, 'n', sCalc, 5, true),
+                        mkCell(fOver, 'n', sOver, 6, true),
+                        mkCell(vTrav, 'n', sTrav, 7),
+                        mkCell(data.travelType || undefined, 's', sTrav, 8),
+                        mkCell(data.act || undefined, 's', sNote, 9)
+                    ];
+                    dataRows.push(row);
+                }
+
+                // Totali
+                const lastRowIdx = daysInMonth + 1;
+                const excelLastDataRow = daysInMonth + 1;
+                const fSumWork = `SUM(F2:F${excelLastDataRow})`;
+                const fSumOver = `SUM(G2:G${excelLastDataRow})`;
+                const fSumTrav = `SUM(H2:H${excelLastDataRow})`;
+                const sTot = { ...baseStyle, font: { name: "Calibri", sz: 11, bold: true }, fill: { fgColor: { rgb: "FFE082" } } };
+
+                const mkTot = (val, isFormula, colIdx) => {
+                    const s = withBorder(sTot, lastRowIdx, colIdx, totalRowsCount, lastColIdx);
+                    if(isFormula) { s.numFmt = "[h]\"h \"m\"m\""; }
+                    let o = { s: s };
+                    if(isFormula) { o.f = val; o.t = 'n'; }
+                    else if(val) { o.v = val; o.t = 's'; }
+                    else { o.v = ""; o.t = 's'; } 
+                    return o;
+                }
+
+                dataRows.push([
+                    mkTot("TOTALI", false, 0), mkTot("", false, 1), mkTot("", false, 2), mkTot("", false, 3), mkTot("", false, 4),
+                    mkTot(fSumWork, true, 5), mkTot(fSumOver, true, 6), mkTot(fSumTrav, true, 7),
+                    mkTot("", false, 8), mkTot("", false, 9)
+                ]);
+
+                const ws = XLSX.utils.aoa_to_sheet(dataRows);
+                ws['!cols'] = [{wch:12}, {wch:8}, {wch:8}, {wch:8}, {wch:12}, {wch:12}, {wch:12}, {wch:12}, {wch:10}, {wch:40}];
+                ws['!autofilter'] = { ref: `A1:J${lastRowIdx}` };
+
+                // FIX MENU A TENDINA: 
+                // Assicuriamoci che dataValidation sia un array.
+                // Indichiamo il range completo della colonna I (I2 fino alla fine).
+                if(!ws['!dataValidation']) ws['!dataValidation'] = [];
+                ws['!dataValidation'].push({
+                    sqref: `I2:I${excelLastDataRow}`,
+                    type: 'list',
+                    operator: 'equal',
+                    formula1: '"Auto,Aereo,Treno,Altro"', // Le virgolette interne sono essenziali per la lista fissa
+                    showDropDown: true,
+                    allowBlank: true
+                });
+
+                XLSX.utils.book_append_sheet(wb, ws, monthName);
+            });
+
+            const fname = mode === 'month' ? `Agenda_${monthsMap[currentDate.getMonth()]}_${year}.xlsx` : `Agenda_Anno${year}.xlsx`;
+            XLSX.writeFile(wb, fname);
+            closeExportModal();
+        }
+
+        function importExcel(input) {
+            const f = input.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, {type:'array'});
+                    let count = 0;
+                    wb.SheetNames.forEach(name => {
+                        const json = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1});
+                        for(let i=1; i<json.length; i++) {
+                            const row = json[i]; 
+                            if(!row || row.length<1 || row[0] && row[0].v === "TOTALI") continue;
+                            let valDate = row[0]; if(valDate && typeof valDate === 'object' && valDate.v) valDate = valDate.v;
+                            let d,m,y;
+                            if(typeof valDate === 'number') { const o=XLSX.SSF.parse_date_code(valDate); d=o.d; m=o.m-1; y=o.y; }
+                            else if (typeof valDate === 'string') { const parts = valDate.split('/'); d=parseInt(parts[0]); m=parseInt(parts[1])-1; y=parseInt(parts[2]); }
+                            else continue;
+                            const getV=(idx)=>{let c=row[idx]; if(c&&typeof c==='object'&&c.v!==undefined)return c.v; return c||"";};
+                            if(getV(2)||getV(9)){
+                                const parseTime = (val) => {
+                                    if(typeof val === 'number') {
+                                        let totalMins = Math.round(val * 24 * 60);
+                                        let h = Math.floor(totalMins / 60);
+                                        let m = totalMins % 60;
+                                        return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                                    }
+                                    if(typeof val === 'string' && val.includes('h')) { 
+                                        const parts = val.match(/(\d+)\s*h\s*(\d+)?/); 
+                                        if(parts) return `${parts[1].padStart(2,'0')}:${(parts[2]||'0').padStart(2,'0')}`; 
+                                    }
+                                    return val || "";
+                                };
+                                GLOBAL_DATA[`${y}-${m}-${d}`] = {
+                                    in:parseTime(getV(2)), 
+                                    out:parseTime(getV(3)), 
+                                    break:parseTime(getV(4))||"00:00",
+                                    travel:parseTime(getV(7))||"00:00", 
+                                    travelType:getV(8)||"Auto", 
+                                    act:getV(9)
+                                }; 
+                                count++;
+                            }
+                        }
+                    });
+                    localStorage.setItem(DB_KEY, JSON.stringify(GLOBAL_DATA)); renderDays(); updateTotals(); closeExportModal();
+                    alert(`Importati ${count} giorni da Excel!`);
+                } catch(e) { console.error(e); alert("Errore lettura Excel"); }
+            };
+            r.readAsArrayBuffer(f);
+        }
+
+        init();
+    </script>
+</body>
+</html>
