@@ -26,9 +26,20 @@
         #saveToast { transform: translateY(-150%); transition: transform 0.3s ease; }
         #saveToast.show { transform: translateY(0); }
         .modal-bg { background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+        
+        /* Safe area support (iOS, harmless on Android/Windows) */
+        .pt-safe {
+            padding-top: env(safe-area-inset-top);
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
     </style>
+    
 </head>
-<body class="pb-32 bg-slate-50 text-slate-800">
+<body class="pb-32 bg-slate-50 text-slate-800 flex justify-center">
+    
+    <div class="w-full max-w-md">
 
     <div id="saveToast" class="fixed top-0 left-0 right-0 z-[100] flex justify-center pt-safe pointer-events-none">
         <div class="bg-emerald-500 text-white px-6 py-2 rounded-b-xl shadow-xl text-xs font-bold flex items-center gap-2"><i class="fas fa-check-circle"></i> Salvato</div>
@@ -451,5 +462,8 @@
 
         init();
     </script>
+        
+</div>
 </body>
+
 </html>
