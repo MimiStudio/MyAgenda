@@ -3,23 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1e293b">
+    
     <title>Agenda Mimi Studio</title>
+    
+    <!-- App icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
     <!-- Libreria XLSX con supporto stili -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
         input, select, textarea { font-size: 16px !important; }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .day-card { transition: all 0.2s ease-in-out; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+        .day-card {transition: box-shadow 0.2s ease, transform 0.2s ease;}
         .expanded-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .expanded .expanded-content { max-height: 800px; } 
         .expanded .chevron { transform: rotate(180deg); }
-        .mobile-input { width: 100%; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-weight: 600; color: #334155; text-align: center; }
+        .mobile-input { width: 100%; min-width: 0; box-sizing: border-box; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-weight: 600; color: #334155; }
+        /* Time input: centrato (UX migliore su mobile) */
+        input[type="time"].mobile-input { text-align: center; }
+        /* Select: allineamento naturale (evita overlap iOS) */
+        select.mobile-input { text-align: left; padding-right: 2.5rem; /* spazio freccia custom */ }
         .mobile-input:focus { border-color: #3b82f6; outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
         .input-label { font-size: 0.75rem; color: #64748b; font-weight: 700; margin-bottom: 4px; display: block; }
         .custom-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2rem; }
@@ -34,10 +42,31 @@
         .pb-safe {
             padding-bottom: env(safe-area-inset-bottom);
         }
+
+        /* Fix overlap input/time fields on iOS */
+        .expanded-content .grid > div {
+            min-width: 0;           /* permette al grid item di ridursi correttamente */
+            box-sizing: border-box;  /* include padding e bordi nella larghezza */
+        }
+        
+        /* Fix input/select con icona assoluta */
+        .expanded-content input.mobile-input,
+        .expanded-content select.mobile-input {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        
     </style>
     
+    <!-- Meta iOS / splash -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Agenda Lavoro">
+    <meta name="theme-color" content="#3b82f6">
+    
 </head>
-<body class="pb-32 bg-slate-50 text-slate-800 flex justify-center">
+<body class="bg-slate-50 text-slate-800 flex justify-center">
     
     <div class="w-full max-w-md">
 
@@ -467,3 +496,4 @@
 </body>
 
 </html>
+
