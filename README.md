@@ -78,14 +78,6 @@ L'app è attualmente disponibile in italiano.
 
 ---
 
-## 📸 Anteprima
-
-*(Inserisci qui uno o più screenshot dell'app)*
-
-![Agenda](screenshot-agenda.png)
-
----
-
 ## 📌 Nota
 
 Questo progetto non è pensato come prodotto commerciale né come libreria open-source, ma come **strumento personale di produttività**.
